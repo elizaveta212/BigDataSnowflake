@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: pet_store_db
+    environment:
+      POSTGRES_DB: pet_store
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./create_tables.sql:/docker-entrypoint-initdb.d/01-create_tables.sql
+      - ./исходные данные:/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pet_store"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  data_loader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pet_store
+      DB_USER: postgres
+      DB_PASSWORD: 
+    volumes:
+      - ./исходные данные:/data
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/data_loaded"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  analysis:
+    build:
+      context: .
+      dockerfile: Dockerfile.analysis
+    depends_on:
+      data_loader:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pet_store
+      DB_USER: postgres
+      DB_PASSWORD: 
+
+volumes:
+  postgres_data: 
